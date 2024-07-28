@@ -75,22 +75,34 @@ const verifyOtp = async (req, res) => {
 
 const createPassword = async (req, res) => {
   const { email, password } = req.body;
+  // Check if the email and password are provided
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password are required' });
+  }
+
   try {
+    // Find the user by email
     const user = await User.findOne({ email });
+
+    // Check if user exists
     if (user) {
       // Hash the password
-      const saltRounds = 10; // You can adjust the number of salt rounds
+      const saltRounds = 10; // Adjust the number of salt rounds as needed
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
       // Save the hashed password
       user.password = hashedPassword;
       await user.save();
+
+      // Generate a JWT token
       const token = jwt.sign(
         { id: user._id, user: user },
-        "your_jwt_secret_key",
-        { expiresIn: "1h" }
+        process.env.JWT_SECRET, // Use environment variable for the secret key
+        { expiresIn: '1h' }
       );
-      return res.status(200).json({ success: true, token});
+
+      // Send the success response with token
+      return res.status(200).json({ success: true, token });
     } else {
       return res.status(400).json({ success: false, message: 'User not found' });
     }

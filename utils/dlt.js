@@ -11,7 +11,7 @@ let transporter = nodemailer.createTransport({
     to: email,
     subject: "OTP for Registration",
     text: `Your OTP for registration is: ${otp}. It will expire in 5 minutes.`,
-  };
+  };  
 
   let info = await transporter.sendMail(mailOptions);
 
