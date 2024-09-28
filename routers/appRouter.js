@@ -29,6 +29,8 @@ router.post('/check-email', controllers.checkEmail);
 router.post('/verify-otp', controllers.verifyOtp);
 router.post('/create-password', controllers.createPassword);
 router.post('/verify-password', controllers.verifyPassword);
+router.get('/userData', controllers.getUserProfile);
+router.put('/editprofile/:id', controllers.updateUser);
 
 // Export the router
 module.exports = router;

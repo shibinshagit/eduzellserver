@@ -96,7 +96,7 @@ const createPassword = async (req, res) => {
 
       // Generate a JWT token
       const token = jwt.sign(
-        { id: user._id, user: user },
+        { id: user._id},
         process.env.JWT_SECRET, // Use environment variable for the secret key
         { expiresIn: '1h' }
       );
@@ -121,8 +121,8 @@ const verifyPassword = async (req, res) => {
       const match = await bcrypt.compare(password, user.password);
       if (match) {
         const token = jwt.sign(
-          { id: user._id, user: user },
-          "your_jwt_secret_key",
+          { id: user._id },
+          process.env.JWT_SECRET,
           { expiresIn: "1h" }
         );
         return res.status(200).json({ success: true, token });
@@ -140,199 +140,93 @@ const verifyPassword = async (req, res) => {
 
 
 
-// login=======================================================================================================================
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const admin = await Admin.findOne({ email });
-
-    if (!admin) {
-      return res.status(400).json({ error: "Unauthorized" });
-    }
-
-    const isMatch = await bcrypt.compare(password, admin.password);
-    if (isMatch) {
-      const token = jwt.sign(
-        { id: admin._id, email: admin.email },
-        "your_jwt_secret_key",
-        { expiresIn: "1h" }
-      );
-      res.status(200).json({
-        success: true,
-        message: "Login successful",
-        token,
-      });
-    } else {
-      res.status(400).json({ error: "Unauthorized" });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-// createJob====================================================================================================================
-const createJob = async (req, res) => {
-  try {
-    const { title, description, location, salary, company } = req.body;
-    const newJob = new Job({
-      title,
-      description,
-      location,
-      salary,
-      company,
-    });
-    await newJob.save();
-    res.status(200).json({
-      message: "Job created successfully",
-      jobId: newJob._id,
-    });
-  } catch (error) {
-    console.error("Error creating job:", error);
-    res.status(500).json({ message: "Error creating job" });
-  }
-};
-
-// getJobs======================================================================================================================
-const getJobs = async (req, res) => {
-  try {
-    const jobs = await Job.find();
-    res.status(200).json(jobs);
-  } catch (error) {
-    console.error("Error fetching jobs:", error);
-    res.status(500).json({ message: "Failed to fetch jobs" });
-  }
-};
-
-// applyJob=====================================================================================================================
-const applyJob = async (req, res) => {
-  try {
-    const { userId, jobId, coverLetter, resume } = req.body;
-    const newApplication = new Application({
-      userId,
-      jobId,
-      coverLetter,
-      resume,
-    });
-    await newApplication.save();
-    res.status(200).json({
-      message: "Application submitted successfully",
-      applicationId: newApplication._id,
-    });
-  } catch (error) {
-    console.error("Error submitting application:", error);
-    res.status(500).json({ message: "Error submitting application" });
-  }
-};
-
-// getApplications================================================================================================================
-const getApplications = async (req, res) => {
-  try {
-    const applications = await Application.find().populate('jobId').populate('userId');
-    res.status(200).json(applications);
-  } catch (error) {
-    console.error("Error fetching applications:", error);
-    res.status(500).json({ message: "Failed to fetch applications" });
-  }
-};
-
-// editJob=======================================================================================================================
-const editJob = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, description, location, salary, company } = req.body;
-    const updatedJobData = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid job ID" });
-    }
-
-    const updatedJob = await Job.findByIdAndUpdate(
-      id,
-      { $set: updatedJobData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedJob) {
-      return res.status(404).json({ message: "Job not found" });
-    }
-
-    res.status(200).json(updatedJob);
-  } catch (error) {
-    console.error("Error updating job:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// deleteJob======================================================================================================================
-const deleteJob = async (req, res) => {
-  try {
-    const jobId = req.params.id;
-    const job = await Job.findById(jobId);
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
-    await Job.findByIdAndDelete(jobId);
-    return res.status(200).json({ message: 'Job deleted permanently' });
-  } catch (error) {
-    console.error('Error deleting job:', error);
-    return res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// updateProfile=================================================================================================================
-const updateProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, email, phone, bio } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
-
-    const updatedUserData = { name, email, phone, bio };
-
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      { $set: updatedUserData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json(updatedUser);
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
 // getUserProfile================================================================================================================
 const getUserProfile = async (req, res) => {
   try {
-    const userId = req.params.id;
+    // Extract the token from the Authorization header
+    const token = req.headers.authorization.split(' ')[1]; // Assumes Bearer token is used
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided, authorization denied' });
     }
 
+    // Verify and decode the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // Ensure your JWT secret is in your environment variables
+
+    // Extract user ID from decoded token
+    const userId = decoded.id; // Ensure your token is structured to have the id field
+
+    // Find user by ID from database
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    res.status(200).json(user);
+    // Send back user data, including education, experience, and skills
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      education: user.education || [], // Ensure it's an array
+      experience: user.experience || [], // Ensure it's an array
+      skills: user.skills || [], // Ensure it's an array
+      companyDetails: user.companyDetails || null // Include company details if applicable
+    });
+
   } catch (error) {
-    console.error("Error fetching user profile:", error);
-    res.status(500).json({ message: "Server error" });
+    // Handling invalid token and other potential errors
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    } else if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired' });
+    } else {
+      console.error('Error fetching user:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
   }
 };
 
+// updateUser=======================================================================================================================
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params; // Assuming user ID is passed in the URL parameters
+    const updateData = req.body; // Get the data to update from the request body
+console.log('updateUserController:',id)
+    // Find the user by ID
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update user information with new data
+    user.name = updateData.name || user.name;
+    user.phone = updateData.phone || user.phone;
+    user.email = updateData.email || user.email;
+    user.education = updateData.education || user.education; // Assuming this is an array
+    user.experience = updateData.experience || user.experience; // Assuming this is an array
+    user.skills = updateData.skills || user.skills; // Assuming this is an array
+
+    // If the user is a company, update company details
+    if (updateData.companyDetails) {
+      user.companyDetails = {
+        companyName: updateData.companyDetails.companyName || user.companyDetails.companyName,
+        companyWebsite: updateData.companyDetails.companyWebsite || user.companyDetails.companyWebsite,
+        companySize: updateData.companyDetails.companySize || user.companyDetails.companySize,
+        industry: updateData.companyDetails.industry || user.companyDetails.industry,
+      };
+    }
+
+    // Save the updated user
+    await user.save();
+
+    return res.status(200).json({ message: 'User updated successfully', user });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return res.status(500).json({ message: 'Server error', error });
+  }
+};
 // ====================== Node cron=========================================================================================================================
 async function cleanupExpiredJobs() {
   try {
@@ -352,13 +246,6 @@ module.exports = {
   verifyOtp,
   verifyPassword,
   createPassword,
-  login,
-  createJob,
-  getJobs,
-  applyJob,
-  getApplications,
-  editJob,
-  deleteJob,
-  updateProfile,
-  getUserProfile
+  getUserProfile,
+  updateUser
 };
